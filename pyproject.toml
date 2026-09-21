@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forgebot"
+version = "0.1.0"
+description = "Make any git repo self-operating. Bots as first-class repo citizens."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+    "typer>=0.12",
+    "pyyaml>=6.0",
+    "watchdog>=4.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+tui = ["textual>=0.60"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+forgebot = "forgebot.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["forgebot*"]
