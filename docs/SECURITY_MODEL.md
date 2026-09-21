@@ -2,6 +2,28 @@
 
 forgebot executes software-adjacent automation, so convenience must not outrun trust boundaries.
 
+## Action execution flow
+
+```text
+agent output
+   ↓
+extract structured JSON
+   ↓
+validate action kind and payload schema
+   ↓
+validate manifest permission scope
+   ↓
+validate repository-safe path
+   ↓
+dry-run preview (default)
+   ↓
+explicit --apply for local writes
+   ↓
+audit JSONL record
+```
+
+The default is dry-run. Textual model output never directly performs a write. Only supported typed actions can reach the executor.
+
 ## Threats
 
 - Prompt injection in README files, issues, source code, or generated artifacts.
@@ -21,7 +43,6 @@ forgebot executes software-adjacent automation, so convenience must not outrun t
 - Make action execution typed, logged, idempotent, and permission-checked.
 - Validate GitHub webhook signatures and reject replays.
 - Keep GitHub Actions permissions minimal and dependencies updated.
-- Pin high-risk workflow actions to immutable commits before production use.
 
 ## Safe rollout
 
@@ -30,5 +51,3 @@ forgebot executes software-adjacent automation, so convenience must not outrun t
 3. Pull-request-only writes.
 4. GitHub App with repository-scoped permissions.
 5. Fully automated writes only for narrowly bounded actions.
-
-Never advertise autonomous writes as safe by default. The user should understand exactly what a bot can read and change.

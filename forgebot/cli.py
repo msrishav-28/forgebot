@@ -49,7 +49,7 @@ def list_bots():
 
 @app.command()
 def context():
-    """Print the bounded git + repo-map context a bot would receive."""
+    """Print bounded git + repo-map context."""
     console.print(build_context(Path.cwd()))
 
 
@@ -67,12 +67,13 @@ def doctor():
 @app.command()
 def run(backend: str = typer.Option(None, help="claude | codex | aider")):
     console.print("[bold]forgebot[/] watching… (Ctrl-C to stop)")
-    start_watching(Engine(Path.cwd(), backend), Path.cwd())
+    start_watching(Engine(Path.cwd(), backend, dry_run=True), Path.cwd())
 
 
 @app.command("run-once")
-def run_once(trigger: str, backend: str = typer.Option(None)):
-    Engine(Path.cwd(), backend).on_trigger(trigger)
+def run_once(trigger: str, backend: str = typer.Option(None), apply: bool = typer.Option(False, "--apply")):
+    """Fire one trigger; defaults to safe dry-run mode."""
+    Engine(Path.cwd(), backend, dry_run=not apply).on_trigger(trigger)
 
 
 @app.command()

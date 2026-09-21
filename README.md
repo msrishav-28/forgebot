@@ -2,61 +2,44 @@
 
 > Make any git repo self-operating. Bots are files. The repo is the interface.
 
-Apps were software you opened and operated. **Bots are software you give a job to** — a name, its own instructions, its own permissions. forgebot is the runtime that makes that real inside a git repository, on the Claude Code / Codex / aider CLI you already have.
-
-No cloud. No billing. No LLM frameworks. No app to open. `git clone → forgebot init → it works`.
-
-## Architecture
-
-| Module | Job |
-|---|---|
-| Manifest parser | YAML frontmatter + Markdown instructions |
-| Permissions | Enforced read/write scopes |
-| Agent backends | Claude Code, Codex, or aider CLI |
-| Repo map | Ranked symbol outline so bots understand the codebase |
-| Triggers | File watching and git hooks |
-| Engine | Trigger → context → rules → agent → permitted actions |
-| CLI | `init`, `list-bots`, `run`, `run-once`, `hook` |
-
-## Why no harness, LangChain, LangGraph, or LangSmith?
-
-forgebot deliberately has zero LLM-framework dependencies.
-
-- **No harness:** Claude Code, Codex, and aider already are agent harnesses. They own the model loop, tool execution, context handling, and safety controls. Adding another harness around them would duplicate the core runtime.
-- **No LangChain:** LangChain is useful for composing prompts, tools, retrievers, and model providers. forgebot has a smaller primitive: trigger one named bot, pass context, run one backend. Direct subprocess calls are easier to inspect and debug.
-- **No LangGraph:** LangGraph is designed for durable, stateful, multi-node agent workflows with branching, checkpoints, and human approval. forgebot's v0 workflow is deliberately linear. We should add a graph only when real bots need retries, approvals, fan-out, or long-running state.
-- **No LangSmith:** LangSmith is valuable for hosted tracing, evaluation, and observability. forgebot is local-first and BYO-subscription. v0 records local JSONL runs; a future OpenTelemetry exporter can provide portable traces without forcing a hosted SaaS dependency.
-
-This is not anti-framework. It is scope discipline: the kernel should remain understandable in one sitting.
+forgebot turns named Markdown bot definitions into triggered, permissioned developer automation. It runs with Claude Code, Codex, or aider and defaults to dry-run mode.
 
 ## Quickstart
 
 ```bash
-pip install -e .
-cd your-repo
+pip install -e '.[dev]'
+forgebot doctor
 forgebot init
-git config core.hooksPath .githooks
 forgebot list-bots
-forgebot run
+forgebot context
+forgebot run-once post-merge
 ```
 
-## Principles
+All runs are dry-run by default. Use `--apply` only after reviewing the action preview:
 
-1. Bots are files.
-2. Permissions are enforced, not suggested.
-3. Deterministic rules handle numbers; models write explanations.
-4. BYO agent: Claude Code, Codex, or aider.
-5. Start with direct primitives; introduce frameworks when complexity proves they are needed.
+```bash
+forgebot run-once post-merge --apply
+```
 
-## Roadmap
+## Runtime
 
-- v0: local kernel, file/git triggers, flagship bots, agent adapters
-- v0.1: Textual live dashboard and repo-map context injection
-- v1: GitHub webhooks, SQLite run history, installable bot library, portable tracing
-- v2: web gallery and multi-step bot graphs when justified
+```text
+git/file event → bot manifest → bounded context → deterministic rules
+→ Claude/Codex/aider → typed JSON actions → permission/path validation
+→ dry-run or explicit apply → JSONL audit log
+```
 
-## Acknowledgements
+## Why forgebot?
 
-The repo-map implementation is adapted from the repo-map concept in [aider](https://github.com/Aider-AI/aider), Apache-2.0. See [NOTICE](NOTICE).
+Unlike an interactive coding assistant, forgebot lets a repository declare what should happen after a trigger. Unlike a generic agent framework, it keeps bots portable, reviewable, and versioned in git.
 
-Built by [@msrishav-28](https://github.com/msrishav-28).
+## Safety
+
+- Read-only by default.
+- Explicit permission scopes.
+- Structured actions instead of implicit model writes.
+- Repository-bound path validation.
+- JSONL audit history.
+- No API key or hosted LLM dependency.
+
+Read [ARCHITECTURE](docs/ARCHITECTURE.md), [ROADMAP](docs/ROADMAP.md), and [SECURITY_MODEL](docs/SECURITY_MODEL.md) before enabling write actions.
