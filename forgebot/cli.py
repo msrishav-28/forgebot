@@ -1,4 +1,4 @@
-"""forgebot CLI — init, list-bots, run, run-once, hook."""
+"""forgebot CLI."""
 
 from __future__ import annotations
 
@@ -9,23 +9,22 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from .context import build_context
 from .engine import Engine
 from .manifest import ManifestError, load_bots
 from .watcher import install_git_hooks, run_hook, start_watching
 
 app = typer.Typer(help="forgebot — make any git repo self-operating.")
 console = Console()
-
-Template = Path(__file__).resolve().parent.parent / "templates"
+TEMPLATES = Path(__file__).resolve().parent.parent / "templates"
 
 
 @app.command()
 def init():
-    """Scaffold .gitbot/ in the current repo and install git hooks."""
     root = Path.cwd()
     bots_dir = root / ".gitbot" / "bots"
     bots_dir.mkdir(parents=True, exist_ok=True)
-    tpl = Template / "bots" / "docs-refresh.md"
+    tpl = TEMPLATES / "bots" / "docs-refresh.md"
     if tpl.exists() and not (bots_dir / tpl.name).exists():
         shutil.copy(tpl, bots_dir / tpl.name)
     for hook in install_git_hooks(root):
@@ -35,7 +34,6 @@ def init():
 
 @app.command("list-bots")
 def list_bots():
-    """Show every bot declared in this repo."""
     try:
         bots = load_bots(Path.cwd())
     except ManifestError as exc:
@@ -50,21 +48,35 @@ def list_bots():
 
 
 @app.command()
-def run(backend: str = typer.Option(None, help="claude | codex")):
-    """Watch this repo and fire bots on triggers. Ctrl-C to stop."""
+def context():
+    """Print the bounded git + repo-map context a bot would receive."""
+    console.print(build_context(Path.cwd()))
+
+
+@app.command()
+def doctor():
+    """Check local prerequisites and repository setup."""
+    import shutil as _shutil
+    checks = {"git": _shutil.which("git"), "claude": _shutil.which("claude"),
+              "codex": _shutil.which("codex"), "aider": _shutil.which("aider"),
+              ".gitbot/bots": (Path.cwd() / ".gitbot" / "bots").is_dir()}
+    for name, value in checks.items():
+        console.print(f"{'[green]✓[/]' if value else '[yellow]–[/]'} {name}: {value or 'not found'}")
+
+
+@app.command()
+def run(backend: str = typer.Option(None, help="claude | codex | aider")):
     console.print("[bold]forgebot[/] watching… (Ctrl-C to stop)")
     start_watching(Engine(Path.cwd(), backend), Path.cwd())
 
 
 @app.command("run-once")
 def run_once(trigger: str, backend: str = typer.Option(None)):
-    """Fire a trigger manually — the demo command. e.g. `forgebot run-once post-merge`"""
     Engine(Path.cwd(), backend).on_trigger(trigger)
 
 
 @app.command()
 def hook(name: str):
-    """Entry point for git hooks (.githooks/<hook> calls this)."""
     run_hook(name, Path.cwd())
 
 

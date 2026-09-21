@@ -9,19 +9,25 @@ description = "Make any git repo self-operating. Bots as first-class repo citize
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
-dependencies = [
-    "typer>=0.12",
-    "pyyaml>=6.0",
-    "watchdog>=4.0",
-    "rich>=13.0",
-]
+dependencies = ["typer>=0.12", "pyyaml>=6.0", "watchdog>=4.0", "rich>=13.0"]
 
 [project.optional-dependencies]
 tui = ["textual>=0.60"]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "ruff>=0.6", "pytest-cov>=5.0"]
 
 [project.scripts]
 forgebot = "forgebot.cli:app"
 
 [tool.setuptools.packages.find]
 include = ["forgebot*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.coverage.run]
+source = ["forgebot"]
