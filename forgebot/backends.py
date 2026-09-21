@@ -1,4 +1,4 @@
-"""Agent backends: drive the user's existing Claude Code / Codex CLI.
+"""Agent backends: drive the user's existing Claude Code / Codex / aider CLI.
 
 forgebot never bills for LLM calls. It shells out to whichever CLI the
 user is already logged into, injecting the bot's instructions + context.
@@ -52,12 +52,30 @@ class CodexBackend:
         return AgentResult(self.name, proc.stdout.strip(), proc.returncode)
 
 
+class AiderBackend:
+    """Scriptable aider as an agent backend."""
+
+    name = "aider"
+
+    @staticmethod
+    def available() -> bool:
+        return shutil.which("aider") is not None
+
+    def run(self, prompt: str, cwd: str, timeout: int = 900) -> AgentResult:
+        proc = subprocess.run(
+            ["aider", "--message", prompt, "--no-auto-commits", "--yes"],
+            cwd=cwd, capture_output=True, text=True, timeout=timeout,
+        )
+        return AgentResult(self.name, proc.stdout.strip(), proc.returncode)
+
+
 def pick_backend(prefer: str | None = None):
-    """Choose the first available backend, honoring an explicit preference."""
-    order = [ClaudeBackend, CodexBackend]
+    order = [ClaudeBackend, CodexBackend, AiderBackend]
     if prefer == "codex":
-        order.reverse()
+        order = [CodexBackend, ClaudeBackend, AiderBackend]
+    elif prefer == "aider":
+        order = [AiderBackend, ClaudeBackend, CodexBackend]
     for cls in order:
         if cls.available():
             return cls()
-    raise BackendError("No agent CLI found. Log into `claude` or `codex` first.")
+    raise BackendError("No agent CLI found. Log into `claude`, `codex`, or `aider` first.")

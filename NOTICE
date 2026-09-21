@@ -1,0 +1,14 @@
+forgebot
+Copyright 2026 M S Rishav Subhin (msrishav-28)
+
+This product includes code adapted from third-party projects:
+
+- aider (https://github.com/Aider-AI/aider)
+  Copyright 2023-2026 Paul Gauthier and contributors
+  Licensed under the Apache License, Version 2.0
+
+  forgebot/repomap.py adapts aider's repo-map concept in simplified form.
+  forgebot/backends.py can also drive the aider CLI as an agent backend.
+
+  Apache License, Version 2.0:
+  https://www.apache.org/licenses/LICENSE-2.0.txt

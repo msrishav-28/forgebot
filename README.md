@@ -2,70 +2,61 @@
 
 > Make any git repo self-operating. Bots are files. The repo is the interface.
 
-Apps were software you opened and operated. **Bots are software you give a job to** — a name, its own instructions, its own permissions. forgebot is the runtime that makes that real inside a git repository, on the Claude Code / Codex subscription you already have.
+Apps were software you opened and operated. **Bots are software you give a job to** — a name, its own instructions, its own permissions. forgebot is the runtime that makes that real inside a git repository, on the Claude Code / Codex / aider CLI you already have.
 
-No cloud. No billing. No app to open. `git clone → forgebot init → it works`.
+No cloud. No billing. No LLM frameworks. No app to open. `git clone → forgebot init → it works`.
 
-## What a bot is
+## Architecture
 
-A bot is one markdown file in `.gitbot/bots/`:
+| Module | Job |
+|---|---|
+| Manifest parser | YAML frontmatter + Markdown instructions |
+| Permissions | Enforced read/write scopes |
+| Agent backends | Claude Code, Codex, or aider CLI |
+| Repo map | Ranked symbol outline so bots understand the codebase |
+| Triggers | File watching and git hooks |
+| Engine | Trigger → context → rules → agent → permitted actions |
+| CLI | `init`, `list-bots`, `run`, `run-once`, `hook` |
 
-```markdown
----
-name: docrefresh
-description: Regenerates stale README sections and inline comments after every merge.
-permissions: [read:repo, write:pr]
-triggers: [post-merge]
----
+## Why no harness, LangChain, LangGraph, or LangSmith?
 
-## Instructions
-You are docrefresh. When a merge lands on main:
-1. Read the diff since the last merge.
-2. Find README sections and docstrings that the diff makes stale.
-3. Regenerate them and open a PR titled `docs: auto-refresh after <sha>`.
-Never invent numbers. Only quote what you read.
-```
+forgebot deliberately has zero LLM-framework dependencies.
 
-Versioned, diffable, forkable — the repo itself is the bot registry.
+- **No harness:** Claude Code, Codex, and aider already are agent harnesses. They own the model loop, tool execution, context handling, and safety controls. Adding another harness around them would duplicate the core runtime.
+- **No LangChain:** LangChain is useful for composing prompts, tools, retrievers, and model providers. forgebot has a smaller primitive: trigger one named bot, pass context, run one backend. Direct subprocess calls are easier to inspect and debug.
+- **No LangGraph:** LangGraph is designed for durable, stateful, multi-node agent workflows with branching, checkpoints, and human approval. forgebot's v0 workflow is deliberately linear. We should add a graph only when real bots need retries, approvals, fan-out, or long-running state.
+- **No LangSmith:** LangSmith is valuable for hosted tracing, evaluation, and observability. forgebot is local-first and BYO-subscription. v0 records local JSONL runs; a future OpenTelemetry exporter can provide portable traces without forcing a hosted SaaS dependency.
 
-## Architecture (the kernel is ~150 lines)
-
-| Module | File | Job |
-|---|---|---|
-| Manifest parser | `forgebot/manifest.py` | Read bot files: YAML frontmatter + instructions |
-| Permissions | `forgebot/permissions.py` | Scope enforcement — read-only bots get no write tools |
-| Agent backends | `forgebot/backends.py` | Shell out to `claude -p` / `codex exec` (user's own subscription) |
-| Triggers | `forgebot/watcher.py` | File-watch + git hooks (`post-merge`, `pre-push`) |
-| Engine | `forgebot/engine.py` | Trigger → context → rules shim → agent → permitted actions |
-| CLI | `forgebot/cli.py` | `init`, `list-bots`, `run`, `run-once`, `hook` |
-| Dashboard | `forgebot/tui.py` | Textual TUI: live view of bots firing (v0.1) |
+This is not anti-framework. It is scope discipline: the kernel should remain understandable in one sitting.
 
 ## Quickstart
 
 ```bash
 pip install -e .
 cd your-repo
-forgebot init            # scaffolds .gitbot/ with a template bot
-git config core.hooksPath .githooks   # wire the post-merge trigger
+forgebot init
+git config core.hooksPath .githooks
 forgebot list-bots
-forgebot run             # watch + fire on triggers
-git merge feature-x      # watch a bot do its job
+forgebot run
 ```
-
-Shipped bots live in `templates/` and `examples/` — including **runwatch**, the anomaly flagger for ML experiment runs.
 
 ## Principles
 
-1. **Bots are files.** If it's not in git, it's not a bot.
-2. **Permissions are enforced, not suggested.** A bot that declares `read:repo` literally cannot receive write tools.
-3. **Deterministic rules, probabilistic prose.** A tiny `rules.py` shim does exact checks; the LLM only reads results and writes explanations. Never let the model invent numbers.
-4. **BYO agent.** forgebot never bills you — it drives the Claude Code / Codex CLI you already pay for.
+1. Bots are files.
+2. Permissions are enforced, not suggested.
+3. Deterministic rules handle numbers; models write explanations.
+4. BYO agent: Claude Code, Codex, or aider.
+5. Start with direct primitives; introduce frameworks when complexity proves they are needed.
 
 ## Roadmap
 
-- **v0** (this commit): local kernel, file + git-hook triggers, one flagship bot
-- **v0.1**: Textual live dashboard
-- **v1**: FastAPI webhook server (GitHub events), SQLite run history, `forgebot install <owner/bot>` library command
-- **v2**: web gallery for the public bot library
+- v0: local kernel, file/git triggers, flagship bots, agent adapters
+- v0.1: Textual live dashboard and repo-map context injection
+- v1: GitHub webhooks, SQLite run history, installable bot library, portable tracing
+- v2: web gallery and multi-step bot graphs when justified
 
-Built by [@msrishav-28](https://github.com/msrishav-28). The docs bot is powered by [Tekshila](https://github.com/msrishav-28/Tekshila).
+## Acknowledgements
+
+The repo-map implementation is adapted from the repo-map concept in [aider](https://github.com/Aider-AI/aider), Apache-2.0. See [NOTICE](NOTICE).
+
+Built by [@msrishav-28](https://github.com/msrishav-28).
