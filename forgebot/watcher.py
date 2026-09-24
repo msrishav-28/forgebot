@@ -18,19 +18,25 @@ from watchdog.observers import Observer
 class BotFileHandler(FileSystemEventHandler):
     """Map filesystem events to file_added/file_changed triggers."""
 
-    def __init__(self, engine, repo_root: Path):
+    def __init__(self, engine, repo_root: Path, on_results=None):
         self.engine = engine
         self.repo_root = repo_root
+        self.on_results = on_results
 
     def on_created(self, event):
         if not event.is_directory:
             rel = str(Path(event.src_path).relative_to(self.repo_root))
-            self.engine.on_trigger(f"file_added({rel})")
+            self._emit(f"file_added({rel})")
 
     def on_modified(self, event):
         if not event.is_directory:
             rel = str(Path(event.src_path).relative_to(self.repo_root))
-            self.engine.on_trigger(f"file_changed({rel})")
+            self._emit(f"file_changed({rel})")
+
+    def _emit(self, trigger: str) -> None:
+        results = self.engine.on_trigger(trigger)
+        if self.on_results is not None:
+            self.on_results(results)
 
 
 def glob_of(trigger: str) -> str | None:
@@ -60,9 +66,10 @@ def run_hook(name: str, repo_root: Path) -> None:
     Engine(repo_root).on_trigger(name)
 
 
-def start_watching(engine, repo_root: Path) -> None:
+def start_watching(engine, repo_root: Path, on_results=None) -> None:
     observer = Observer()
-    observer.schedule(BotFileHandler(engine, repo_root), str(repo_root), recursive=True)
+    observer.schedule(BotFileHandler(engine, repo_root, on_results), str(repo_root),
+                      recursive=True)
     observer.start()
     try:
         import time

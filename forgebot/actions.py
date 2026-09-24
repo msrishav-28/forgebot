@@ -7,9 +7,19 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .github import comment_argv, run_gh
 from .permissions import require
 
-ALLOWED_KINDS = {"write_file", "no_op"}
+ALLOWED_KINDS = {"write_file", "no_op", "comment"}
+
+
+def _audit_argv(argv: list[str]) -> list[str]:
+    """Redact long text values before they reach the audit log."""
+    redacted = list(argv)
+    if "--body" in redacted:
+        i = redacted.index("--body")
+        redacted[i + 1] = f"<{len(redacted[i + 1])} chars>"
+    return redacted
 
 
 @dataclass(frozen=True)
@@ -58,6 +68,15 @@ class ActionPlan:
                     raise ValueError("write_file requires a string payload.content")
                 if action.required_scope != "write:files":
                     raise ValueError("write_file must require write:files")
+            elif action.kind == "comment":
+                number = action.payload.get("number")
+                if not isinstance(number, int) or isinstance(number, bool) or number <= 0:
+                    raise ValueError("comment requires a positive integer payload.number")
+                body = action.payload.get("body")
+                if not isinstance(body, str) or not body.strip():
+                    raise ValueError("comment requires a non-empty string payload.body")
+                if action.required_scope != "write:comments":
+                    raise ValueError("comment must require write:comments")
             require(permissions, action.required_scope, bot_name)
 
     def safe_summary(self) -> list[str]:
@@ -85,6 +104,7 @@ class ActionExecutor:
         for action in plan.actions:
             entry = {"action_key": action.key, "bot": bot_name, "kind": action.kind,
                      "dry_run": self.dry_run, "status": "planned"}
+            audit = entry
             if action.kind == "write_file":
                 path = self._safe_path(action.payload["path"])
                 if not self.dry_run:
@@ -92,9 +112,17 @@ class ActionExecutor:
                     path.write_text(action.payload["content"], encoding="utf-8")
                     entry["status"] = "applied"
                 entry["path"] = str(path.relative_to(self.root))
+            elif action.kind == "comment":
+                argv = comment_argv(action.payload)
+                entry["argv"] = argv
+                if not self.dry_run:
+                    proc = run_gh(argv, self.root)
+                    entry["status"] = "applied"
+                    entry["result"] = proc.stdout.strip()[:500]
+                audit = dict(entry, argv=_audit_argv(argv))
             elif action.kind == "no_op":
                 entry["status"] = "skipped"
             with self.audit_path.open("a", encoding="utf-8") as stream:
-                stream.write(json.dumps(entry) + "\n")
+                stream.write(json.dumps(audit) + "\n")
             results.append(entry)
         return results

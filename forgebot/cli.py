@@ -19,6 +19,27 @@ console = Console()
 TEMPLATES = Path(__file__).resolve().parent.parent / "templates"
 
 
+def _print_results(results: list[dict]) -> None:
+    for r in results:
+        if r.get("error"):
+            console.print(f"[red]✗[/] {r['bot']}: {r['error']}")
+            continue
+        if r.get("gate") == "skip":
+            console.print(f"[yellow]–[/] {r['bot']}: gate skipped (p={r.get('probability')})")
+            continue
+        console.print(
+            f"[green]✓[/] {r['bot']} via {r.get('backend')}: "
+            f"{len(r.get('actions', []))} action(s)"
+        )
+        if r.get("warning"):
+            console.print(f"[yellow]warning[/]: {r['warning']}")
+        for line in r.get("actions", []):
+            console.print(f"    {line}")
+        for entry in r.get("executed", []):
+            if entry.get("argv"):
+                console.print(f"    [{entry['status']}] {' '.join(entry['argv'])}")
+
+
 @app.command()
 def init():
     root = Path.cwd()
@@ -67,13 +88,15 @@ def doctor():
 @app.command()
 def run(backend: str = typer.Option(None, help="claude | codex | aider")):
     console.print("[bold]forgebot[/] watching… (Ctrl-C to stop)")
-    start_watching(Engine(Path.cwd(), backend, dry_run=True), Path.cwd())
+    start_watching(Engine(Path.cwd(), backend, dry_run=True), Path.cwd(),
+                   on_results=_print_results)
 
 
 @app.command("run-once")
 def run_once(trigger: str, backend: str = typer.Option(None), apply: bool = typer.Option(False, "--apply")):
     """Fire one trigger; defaults to safe dry-run mode."""
-    Engine(Path.cwd(), backend, dry_run=not apply).on_trigger(trigger)
+    results = Engine(Path.cwd(), backend, dry_run=not apply).on_trigger(trigger)
+    _print_results(results)
 
 
 @app.command()

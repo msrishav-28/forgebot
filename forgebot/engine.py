@@ -10,11 +10,22 @@ from pathlib import Path
 from .actions import ActionExecutor, ActionPlan
 from .backends import BackendError, pick_backend
 from .context import build_context
+from .github import GitHubError
 from .manifest import Bot, load_bots
 from .permissions import PermissionDenied
 from .watcher import matches
 
 STATE_DIR = ".gitbot/state"
+
+ACTION_SCHEMA = (
+    "Available action kinds (use only what your manifest permissions allow):\n"
+    "- no_op: payload {} with required_scope read:repo\n"
+    "- write_file: payload {\"path\": str, \"content\": str}, requires write:files\n"
+    "- comment: payload {\"number\": int, \"body\": str, \"repo\": optional str}, "
+    "requires write:comments\n"
+    "Return a JSON object only: {\"actions\":[{\"kind\":\"no_op\",\"payload\":{},"
+    "\"required_scope\":\"read:repo\"}]}"
+)
 
 
 class Engine:
@@ -38,7 +49,7 @@ class Engine:
                 continue
             try:
                 results.append(self.run_bot(bot, trigger))
-            except (PermissionDenied, BackendError, ValueError) as exc:
+            except (PermissionDenied, BackendError, GitHubError, ValueError) as exc:
                 results.append({"bot": bot.name, "error": str(exc)})
         self._record(trigger, results)
         return results
@@ -48,8 +59,7 @@ class Engine:
         shim = self.run_rules_shim(bot, trigger)
         prompt = (
             f"{bot.instructions}\n\n=== TRIGGER ===\n{trigger}\n\n=== CONTEXT ===\n{context}\n\n"
-            "Return a JSON object only: {\"actions\":[{\"kind\":\"no_op\",\"payload\":{},"
-            "\"required_scope\":\"read:repo\"}]}"
+            f"{ACTION_SCHEMA}"
         )
         if shim:
             prompt += f"\n=== DETERMINISTIC RULES (exact; do not contradict) ===\n{shim}"
