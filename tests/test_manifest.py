@@ -20,7 +20,7 @@ Do the thing.
 
 def write(tmp_path: Path, name: str, text: str) -> Path:
     p = tmp_path / ".gitbot" / "bots" / name
-    p.parent.mkdir(parents=True)
+    p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(text)
     return p
 
