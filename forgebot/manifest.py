@@ -26,9 +26,6 @@ class Bot:
     rules_shim: str | None = None
     instructions: str = ""
 
-    def allows(self, scope: str) -> bool:
-        return scope in self.permissions
-
 
 def parse_manifest(path: Path) -> Bot:
     text = path.read_text(encoding="utf-8")
