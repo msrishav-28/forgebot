@@ -62,8 +62,9 @@ it is a cheap decision layer. Scope: gatekeeper only.
   would run; `--apply` executes; both paths append to `.gitbot/state/actions.jsonl`.
 - If `gh` is missing or unauthenticated, `--apply` fails loudly with install/login
   instructions; dry-run still previews.
-- `write:files` (working-tree writes) stays out of scope for 0.2.0 and remains declared
-  but unimplemented; docs must say so plainly.
+- `write:files` (local working-tree writes via the `write_file` action) is already
+  implemented in 0.1.0. After this task every scope in `KNOWN_SCOPES` is backed by a
+  real, checked executor path.
 
 ### Aider security gap
 
@@ -98,8 +99,7 @@ wire it, if no, document the limitation.
 
 ## Explicitly out of scope for 0.2.0
 
-- Plugin/extension architecture, dashboard/TUI, `write:files` implementation: all 0.3.0
-  (Option B).
+- Plugin/extension architecture and the dashboard/TUI: both 0.3.0 (Option B).
 - No force-push; if the remote diverges from local, report instead of overwriting.
 
 ## Git/push plan
