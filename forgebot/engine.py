@@ -23,6 +23,8 @@ ACTION_SCHEMA = (
     "- write_file: payload {\"path\": str, \"content\": str}, requires write:files\n"
     "- comment: payload {\"number\": int, \"body\": str, \"repo\": optional str}, "
     "requires write:comments\n"
+    "- create_pr: payload {\"title\": str, \"body\": str, \"head\": optional str, "
+    "\"base\": optional str, \"repo\": optional str}, requires write:pr\n"
     "Return a JSON object only: {\"actions\":[{\"kind\":\"no_op\",\"payload\":{},"
     "\"required_scope\":\"read:repo\"}]}"
 )

@@ -90,3 +90,22 @@ def test_audit_log_redacts_body(tmp_path, monkeypatch):
     audit = (tmp_path / ".gitbot" / "state" / "actions.jsonl").read_text(encoding="utf-8")
     assert "secret text" not in audit
     assert "<11 chars>" in audit
+
+
+def test_create_pr_requires_write_pr_scope():
+    plan = ActionPlan([Action("create_pr", {"title": "t", "body": "b"}, "write:comments")])
+    with pytest.raises(ValueError, match="write:pr"):
+        plan.validate(["write:pr", "write:comments"], "bot")
+
+
+def test_create_pr_rejects_empty_title():
+    plan = ActionPlan([Action("create_pr", {"title": " ", "body": "b"}, "write:pr")])
+    with pytest.raises(ValueError, match="title"):
+        plan.validate(["write:pr"], "bot")
+
+
+def test_create_pr_dry_run_previews_argv(tmp_path):
+    plan = ActionPlan([Action("create_pr", {"title": "t", "body": "b"}, "write:pr")])
+    result = ActionExecutor(tmp_path, dry_run=True).execute(plan, ["write:pr"], "bot")
+    assert result[0]["status"] == "planned"
+    assert result[0]["argv"][:2] == ["pr", "create"]

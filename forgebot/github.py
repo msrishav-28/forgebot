@@ -42,3 +42,11 @@ def comment_argv(payload: dict) -> list[str]:
     if payload.get("repo"):
         argv += ["--repo", str(payload["repo"])]
     return argv
+
+
+def pr_create_argv(payload: dict) -> list[str]:
+    argv = ["pr", "create", "--title", payload["title"], "--body", payload["body"]]
+    for flag, key in (("--head", "head"), ("--base", "base"), ("--repo", "repo")):
+        if payload.get(key):
+            argv += [flag, str(payload[key])]
+    return argv

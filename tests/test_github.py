@@ -19,3 +19,18 @@ def test_gh_path_missing(monkeypatch):
     monkeypatch.setattr("forgebot.github.shutil.which", lambda name: None)
     with pytest.raises(GitHubError, match="gh CLI not found"):
         gh_path()
+
+
+from forgebot.github import pr_create_argv
+
+
+def test_pr_create_argv_exact():
+    argv = pr_create_argv({"title": "t", "body": "b"})
+    assert argv == ["pr", "create", "--title", "t", "--body", "b"]
+
+
+def test_pr_create_argv_optional_flags():
+    argv = pr_create_argv(
+        {"title": "t", "body": "b", "head": "feat", "base": "main", "repo": "octo/r"}
+    )
+    assert argv[-6:] == ["--head", "feat", "--base", "main", "--repo", "octo/r"]

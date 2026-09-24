@@ -7,10 +7,10 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .github import comment_argv, run_gh
+from .github import comment_argv, pr_create_argv, run_gh
 from .permissions import require
 
-ALLOWED_KINDS = {"write_file", "no_op", "comment"}
+ALLOWED_KINDS = {"write_file", "no_op", "comment", "create_pr"}
 
 
 def _audit_argv(argv: list[str]) -> list[str]:
@@ -77,6 +77,14 @@ class ActionPlan:
                     raise ValueError("comment requires a non-empty string payload.body")
                 if action.required_scope != "write:comments":
                     raise ValueError("comment must require write:comments")
+            elif action.kind == "create_pr":
+                title = action.payload.get("title")
+                if not isinstance(title, str) or not title.strip():
+                    raise ValueError("create_pr requires a non-empty string payload.title")
+                if not isinstance(action.payload.get("body"), str):
+                    raise ValueError("create_pr requires a string payload.body")
+                if action.required_scope != "write:pr":
+                    raise ValueError("create_pr must require write:pr")
             require(permissions, action.required_scope, bot_name)
 
     def safe_summary(self) -> list[str]:
@@ -114,6 +122,14 @@ class ActionExecutor:
                 entry["path"] = str(path.relative_to(self.root))
             elif action.kind == "comment":
                 argv = comment_argv(action.payload)
+                entry["argv"] = argv
+                if not self.dry_run:
+                    proc = run_gh(argv, self.root)
+                    entry["status"] = "applied"
+                    entry["result"] = proc.stdout.strip()[:500]
+                audit = dict(entry, argv=_audit_argv(argv))
+            elif action.kind == "create_pr":
+                argv = pr_create_argv(action.payload)
                 entry["argv"] = argv
                 if not self.dry_run:
                     proc = run_gh(argv, self.root)
