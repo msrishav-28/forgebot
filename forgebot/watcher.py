@@ -9,7 +9,6 @@ v0 triggers:
 from __future__ import annotations
 
 import fnmatch
-import subprocess
 from pathlib import Path
 
 from watchdog.events import FileSystemEventHandler
@@ -86,14 +85,3 @@ def install_git_hooks(repo_root: Path) -> list[Path]:
         p.chmod(0o755)
         written.append(p)
     return written
-
-
-def current_head_sha(repo_root: Path) -> str:
-    try:
-        out = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            cwd=repo_root, capture_output=True, text=True, check=True,
-        )
-        return out.stdout.strip()
-    except subprocess.CalledProcessError:
-        return "unknown"

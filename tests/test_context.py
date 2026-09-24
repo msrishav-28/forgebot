@@ -8,3 +8,8 @@ def test_context_contains_repo_map(tmp_path: Path):
     result = build_context(tmp_path)
     assert "REPO MAP" in result
     assert "hello" in result
+
+
+def test_context_head_line(tmp_path: Path):
+    result = build_context(tmp_path, include_map=False)
+    assert result.splitlines()[0].startswith("HEAD: ")

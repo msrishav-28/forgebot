@@ -13,9 +13,20 @@ def git_output(root: Path, *args: str) -> str:
     return result.stdout.strip() if result.returncode == 0 else "(git command unavailable)"
 
 
+def current_head_sha(root: Path) -> str:
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=root, capture_output=True, text=True, check=True,
+        )
+        return out.stdout.strip()
+    except subprocess.CalledProcessError:
+        return "unknown"
+
+
 def build_context(root: Path, include_map: bool = True, max_chars: int = 12000) -> str:
     parts = [
-        f"HEAD: {git_output(root, 'rev-parse', '--short', 'HEAD')}",
+        f"HEAD: {current_head_sha(root)}",
         "--- recent commits ---",
         git_output(root, 'log', '-5', '--oneline'),
         "--- working tree ---",
