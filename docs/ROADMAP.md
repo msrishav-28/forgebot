@@ -12,7 +12,6 @@ The goal is not to make a large AI wrapper. The goal is to make bots portable, r
 
 ## Phase 1 — useful developer experience
 
-- Textual live TUI.
 - `forgebot install owner/repo/path` for bot packages.
 - `forgebot validate` and `forgebot doctor`.
 - More language-aware repo maps using tree-sitter behind an optional extra.
