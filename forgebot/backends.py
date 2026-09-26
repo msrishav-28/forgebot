@@ -63,18 +63,20 @@ class AiderBackend:
 
     def run(self, prompt: str, cwd: str, timeout: int = 900) -> AgentResult:
         proc = subprocess.run(
-            ["aider", "--message", prompt, "--no-auto-commits", "--yes"],
+            ["aider", "--message", prompt, "--no-auto-commits", "--yes", "--dry-run"],
             cwd=cwd, capture_output=True, text=True, timeout=timeout,
         )
         return AgentResult(self.name, proc.stdout.strip(), proc.returncode)
 
 
-def pick_backend(prefer: str | None = None):
+def pick_backend(prefer: str | None = None, applying: bool = False):
     order = [ClaudeBackend, CodexBackend, AiderBackend]
     if prefer == "codex":
         order = [CodexBackend, ClaudeBackend, AiderBackend]
     elif prefer == "aider":
         order = [AiderBackend, ClaudeBackend, CodexBackend]
+    if applying and prefer != "aider":
+        order = [cls for cls in order if cls is not AiderBackend]
     for cls in order:
         if cls.available():
             return cls()

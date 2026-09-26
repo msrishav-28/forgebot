@@ -65,7 +65,13 @@ class Engine:
         )
         if shim:
             prompt += f"\n=== DETERMINISTIC RULES (exact; do not contradict) ===\n{shim}"
-        result = pick_backend(self.backend_name).run(prompt, cwd=str(self.repo_root))
+        result = pick_backend(self.backend_name, applying=not self.dry_run).run(
+            prompt, cwd=str(self.repo_root)
+        )
+        warning = None
+        if result.backend == "aider" and not self.dry_run:
+            warning = ("aider runs without a sandbox; --dry-run blocks its file edits, "
+                       "but prefer claude or codex for --apply")
         try:
             plan = ActionPlan.from_json(result.output)
             executed = ActionExecutor(self.repo_root, dry_run=self.dry_run).execute(
@@ -76,9 +82,17 @@ class Engine:
             plan = ActionPlan([])
             executed = []
             error = str(exc)
-        return {"bot": bot.name, "trigger": trigger, "backend": result.backend,
-                "exit_code": result.exit_code, "output": result.output[:4000],
-                "actions": plan.safe_summary(), "executed": executed, "error": error}
+        return {
+            "bot": bot.name,
+            "trigger": trigger,
+            "backend": result.backend,
+            "exit_code": result.exit_code,
+            "output": result.output[:4000],
+            "warning": warning,
+            "actions": plan.safe_summary(),
+            "executed": executed,
+            "error": error,
+        }
 
     def _record(self, trigger: str, results: list[dict]) -> None:
         with (self.repo_root / STATE_DIR / "runs.jsonl").open("a", encoding="utf-8") as f:
