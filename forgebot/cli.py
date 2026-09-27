@@ -11,6 +11,7 @@ from rich.table import Table
 
 from .context import build_context
 from .engine import Engine
+from .jev import gate_configured
 from .manifest import ManifestError, load_bots
 from .watcher import install_git_hooks, run_hook, start_watching
 
@@ -83,6 +84,9 @@ def doctor():
               ".gitbot/bots": (Path.cwd() / ".gitbot" / "bots").is_dir()}
     for name, value in checks.items():
         console.print(f"{'[green]✓[/]' if value else '[yellow]–[/]'} {name}: {value or 'not found'}")
+    jev_on = gate_configured()
+    state = "configured (TYPESAFE_API_KEY set)" if jev_on else "off (optional)"
+    console.print(f"{'[green]✓[/]' if jev_on else '[yellow]–[/]'} jev gate: {state}")
 
 
 @app.command()

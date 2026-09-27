@@ -54,3 +54,34 @@ def test_load_bots_finds_files(tmp_path):
     write(tmp_path, "b.md", GOOD.replace("demobot", "demobot2"))
     bots = load_bots(tmp_path)
     assert {b.name for b in bots} == {"demobot", "demobot2"}
+
+
+SCREENED = """---
+name: screened
+permissions: [read:repo]
+triggers: [post-merge]
+screen: Does this event matter?
+screen_threshold: 0.7
+---
+
+## Instructions
+Do the thing.
+"""
+
+
+def test_parse_screen_fields(tmp_path):
+    bot = parse_manifest(write(tmp_path, "s.md", SCREENED))
+    assert bot.screen == "Does this event matter?"
+    assert bot.screen_threshold == 0.7
+
+
+def test_screen_defaults_absent(tmp_path):
+    bot = parse_manifest(write(tmp_path, "n.md", GOOD))
+    assert bot.screen is None
+    assert bot.screen_threshold is None
+
+
+def test_screen_threshold_out_of_range(tmp_path):
+    bad = SCREENED.replace("screen_threshold: 0.7", "screen_threshold: 1.5")
+    with pytest.raises(ManifestError):
+        parse_manifest(write(tmp_path, "b.md", bad))

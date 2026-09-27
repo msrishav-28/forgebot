@@ -25,6 +25,8 @@ class Bot:
     triggers: list[str] = field(default_factory=list)
     rules_shim: str | None = None
     instructions: str = ""
+    screen: str | None = None
+    screen_threshold: float | None = None
 
 
 def parse_manifest(path: Path) -> Bot:
@@ -52,8 +54,28 @@ def parse_manifest(path: Path) -> Bot:
     shim = meta.get("rules_shim")
     if shim is None and (path.parent / "rules.py").exists():
         shim = str(path.parent / "rules.py")
-    return Bot(str(meta["name"]), path, str(meta.get("description", "")), permissions,
-               [str(t) for t in trigger], str(shim) if shim else None, instructions)
+    screen = meta.get("screen")
+    if screen is not None and not isinstance(screen, str):
+        raise ManifestError(f"{path}: 'screen' must be a string")
+    threshold = meta.get("screen_threshold")
+    if threshold is not None:
+        try:
+            threshold = float(threshold)
+        except (TypeError, ValueError):
+            raise ManifestError(f"{path}: 'screen_threshold' must be a number") from None
+        if not 0.0 <= threshold <= 1.0:
+            raise ManifestError(f"{path}: 'screen_threshold' must be between 0 and 1")
+    return Bot(
+        str(meta["name"]),
+        path,
+        str(meta.get("description", "")),
+        permissions,
+        [str(t) for t in trigger],
+        str(shim) if shim else None,
+        instructions,
+        str(screen) if screen else None,
+        threshold,
+    )
 
 
 def load_bots(repo_root: Path) -> list[Bot]:

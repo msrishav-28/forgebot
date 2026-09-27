@@ -11,6 +11,7 @@ from .actions import ActionExecutor, ActionPlan
 from .backends import BackendError, pick_backend
 from .context import build_context
 from .github import GitHubError
+from .jev import screen_event
 from .manifest import Bot, load_bots
 from .permissions import PermissionDenied
 from .watcher import matches
@@ -57,6 +58,26 @@ class Engine:
         return results
 
     def run_bot(self, bot: Bot, trigger: str) -> dict:
+        gate, probability, gate_detail = "not-screened", None, ""
+        if bot.screen:
+            decision = screen_event(bot.screen, trigger, bot.screen_threshold)
+            gate = decision.reason
+            probability = decision.probability
+            gate_detail = decision.detail
+            if not decision.proceed:
+                return {
+                    "bot": bot.name,
+                    "trigger": trigger,
+                    "backend": "jev-gate",
+                    "exit_code": 0,
+                    "output": "",
+                    "gate": gate,
+                    "probability": probability,
+                    "warning": gate_detail or None,
+                    "actions": [],
+                    "executed": [],
+                    "error": None,
+                }
         context = build_context(self.repo_root)
         shim = self.run_rules_shim(bot, trigger)
         prompt = (
@@ -68,10 +89,14 @@ class Engine:
         result = pick_backend(self.backend_name, applying=not self.dry_run).run(
             prompt, cwd=str(self.repo_root)
         )
-        warning = None
+        warnings = []
+        if gate == "error":
+            warnings.append(f"jev gate failed open: {gate_detail}")
         if result.backend == "aider" and not self.dry_run:
-            warning = ("aider runs without a sandbox; --dry-run blocks its file edits, "
-                       "but prefer claude or codex for --apply")
+            warnings.append(
+                "aider runs without a sandbox; --dry-run blocks its file edits, "
+                "but prefer claude or codex for --apply"
+            )
         try:
             plan = ActionPlan.from_json(result.output)
             executed = ActionExecutor(self.repo_root, dry_run=self.dry_run).execute(
@@ -88,7 +113,9 @@ class Engine:
             "backend": result.backend,
             "exit_code": result.exit_code,
             "output": result.output[:4000],
-            "warning": warning,
+            "gate": gate,
+            "probability": probability,
+            "warning": "; ".join(warnings) or None,
             "actions": plan.safe_summary(),
             "executed": executed,
             "error": error,
