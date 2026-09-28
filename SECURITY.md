@@ -18,3 +18,5 @@ We aim to acknowledge reports within 7 days and provide an initial assessment wi
 forgebot can launch developer CLIs and bots can eventually write files, comments, or pull requests. Treat bot manifests and agent output as untrusted until reviewed. Never grant `write:files`, `write:pr`, or `write:comments` unless the bot needs it. Never run a bot against an untrusted repository with host credentials available.
 
 Report prompt-injection, permission-bypass, secret-leakage, command-injection, and unsafe GitHub workflow issues privately.
+
+For the full trust model — including `gh` write actions, the optional Jev gate, and the aider `--dry-run` hardening — see [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md).

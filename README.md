@@ -1,31 +1,51 @@
 # forgebot
 
+[![CI](https://github.com/msrishav-28/forgebot/actions/workflows/ci.yml/badge.svg)](https://github.com/msrishav-28/forgebot/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/forgebot)](https://pypi.org/project/forgebot/)
+[![Python](https://img.shields.io/pypi/pyversions/forgebot)](https://pypi.org/project/forgebot/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Ruff](https://img.shields.io/badge/lint-ruff-46a2f1.svg)](https://docs.astral.sh/ruff/)
+
 > Make any git repository self-operating. Bots are files; the repository is the interface.
 
 forgebot runs versioned Markdown bot definitions when repository events occur. Each bot receives bounded repository context, can use a local agent CLI, and returns a validated action plan. Runs are dry-run by default, so automation can be reviewed before it changes anything.
 
 ## What it does
 
-```text
-repository event
-	-> matching bot manifest
-	-> bounded git and repository context
-	-> optional deterministic rules shim
-	-> Claude Code, Codex, or aider
-	-> typed, permission-checked actions
-	-> dry-run preview or explicit apply
-	-> JSONL run and action records
+```mermaid
+flowchart TD
+    A["Repository event: git hook or file watcher"] --> B["Matching bot manifest in .gitbot/bots/"]
+    B --> C{"screen: declared?"}
+    C -->|"no"| E["Bounded context: HEAD, recent commits, status, repo map"]
+    C -->|"yes"| D["Jev gate: ask the screening question"]
+    D -->|"above threshold or gate off"| E
+    D -->|"below threshold"| S["Skip the event: one audit line"]
+    E --> F["Deterministic rules shim output, when declared"]
+    F --> G["Agent CLI: Claude Code, Codex, or aider"]
+    G --> H["Typed JSON action plan"]
+    H --> I["Validate kind, payload, permission scope, and repository-safe paths"]
+    I --> J{"--apply?"}
+    J -->|"default: no"| K["Dry-run preview recorded in .gitbot/state/actions.jsonl"]
+    J -->|"yes"| L["Execute: write_file, gh issue comment, or gh pr create"]
+    L --> M["Run record in .gitbot/state/runs.jsonl"]
+    K --> M
 ```
 
-The project is deliberately local. forgebot does not provide an LLM or require a hosted API: it delegates to an agent CLI already installed and authenticated on your machine.
+The project is deliberately local. forgebot does not provide an LLM and requires no hosted service: it delegates to an agent CLI already installed and authenticated on your machine. The only optional network dependency is the Jev screening gate, which is off unless you enable it.
 
 ## Requirements
 
-- Python 3.11 or newer
-- Git
-- One supported agent CLI: `claude`, `codex`, or `aider`
+- Python 3.11 or newer, and Git.
+- One supported agent CLI: `claude`, `codex`, or `aider`. forgebot shells out to whichever you are logged into; it never bills for LLM calls itself.
+- The official `gh` CLI (`gh auth login`), only for bots that write comments or open pull requests.
 
-Install the package, including development tools:
+Install the package from PyPI:
+
+```bash
+python -m pip install forgebot
+```
+
+Or install from a checkout, including development tools:
 
 ```bash
 python -m pip install -e '.[dev]'
@@ -45,7 +65,7 @@ forgebot is a small Python application built around standard local command-line 
 | Repository context | Git subprocesses and a Python repo map | Supplies recent commits, working-tree status, and a compact symbol outline. |
 | Agent integration | Claude Code, Codex, or aider CLIs | Delegates reasoning to a tool the developer already uses locally. |
 | GitHub integration | GitHub CLI (`gh`) | Applies comment and pull-request actions without handling tokens directly. |
-| Optional screening | Pydantic AI and JEV | Filters low-value events before a full agent run when configured. |
+| Optional screening | Pydantic AI and Jev (TypeSafe AI) | Filters low-value events before a full agent run when configured. |
 | Packaging | setuptools and `pyproject.toml` | Installs the `forgebot` package and console script. |
 | Quality tools | pytest, pytest-cov, and Ruff | Test coverage, test execution, and Python linting. |
 
@@ -55,17 +75,17 @@ The core runtime has no database, web server, queue, or hosted agent service. Lo
 
 ```text
 forgebot/
-	cli.py          Typer commands and terminal output
-	engine.py       Trigger matching and bot execution
-	manifest.py     Markdown/YAML manifest parsing
-	context.py      Bounded Git and repository context
-	repomap.py      Compact Python symbol map generation
-	watcher.py      File events and Git hook integration
-	backends.py     Claude, Codex, and aider adapters
-	actions.py      Typed action plans and safe execution
-	permissions.py  Permission scopes and enforcement
-	github.py       GitHub CLI argument builders
-	jev.py          Optional event-screening gate
+  cli.py          Typer commands and terminal output
+  engine.py       Trigger matching and bot execution
+  manifest.py     Markdown/YAML manifest parsing
+  context.py      Bounded Git and repository context
+  repomap.py      Compact Python symbol map generation
+  watcher.py      File events and Git hook integration
+  backends.py     Claude, Codex, and aider adapters
+  actions.py      Typed action plans and safe execution
+  permissions.py  Permission scopes and enforcement
+  github.py       GitHub CLI argument builders
+  jev.py          Optional event-screening gate
 ```
 
 ## Quickstart
@@ -102,7 +122,7 @@ All commands use dry-run behavior unless write execution is explicitly requested
 forgebot run-once post-merge --apply
 ```
 
-Review bot manifests and the action preview before using `--apply`.
+Watcher runs and Git hook runs are always dry-run. Review bot manifests and the action preview before using `--apply`.
 
 ## Using forgebot in an application
 
@@ -119,7 +139,7 @@ forgebot is intended for repository workflows that have a clear event, a bounded
 This makes the tool useful for recurring repository operations such as:
 
 - Refreshing documentation after a merge and opening a pull request only when documentation is stale.
-- Reviewing newly created experiment metrics and writing a bounded triage note or GitHub comment.
+- Reviewing newly created experiment metrics and posting a bounded triage comment.
 - Turning repository events into pull requests with a predictable title, body, and scope.
 - Running read-only maintenance checks on push or merge without granting the bot write access.
 
@@ -132,15 +152,15 @@ The repository includes [`examples/bots/runwatch.md`](examples/bots/runwatch.md)
 ```markdown
 ---
 name: runwatch
-description: Flags anomalies in new experiment runs.
-permissions: [read:runs_dir, read:repo, write:files]
+description: Flags anomalies in new fault-prediction experiment runs and writes a triage summary.
+permissions: [read:runs_dir, read:repo, write:comments]
 triggers:
-	- file_added(runs/**/metrics.json)
+  - file_added(runs/**/metrics.json)
 rules_shim: .gitbot/bots/runwatch_rules.py
 ---
 ```
 
-The rules shim produces exact comparisons against a rolling baseline. The agent is asked to quote those values and recommend follow-up work, while the manifest prevents unrelated writes. The same pattern works for other domains: put deterministic calculations in a script and reserve the agent for interpretation and structured next steps.
+Copy the manifest and [`runwatch_rules.py`](examples/bots/runwatch_rules.py) into `.gitbot/bots/` to use it. The rules shim produces exact comparisons against a rolling baseline; the agent is asked to quote those values and recommend follow-up work, while the manifest limits writes to GitHub comments. The same pattern works for other domains: put deterministic calculations in a script and reserve the agent for interpretation and structured next steps.
 
 ### Example: a documentation bot
 
@@ -185,9 +205,9 @@ Supported manifest fields are:
 | `description` | Description shown by `forgebot list-bots`. |
 | `permissions` | Explicit scopes the bot may use. |
 | `triggers` | Events that activate the bot. `trigger` is also accepted. |
-| `rules_shim` | Optional Python program whose output is authoritative deterministic context. |
-| `screen` | Optional JEV event-screening prompt. |
-| `screen_threshold` | Optional JEV threshold from `0` to `1`. |
+| `rules_shim` | Optional Python program whose output is authoritative deterministic context. If omitted and a `rules.py` sits next to the manifest, it is used automatically. |
+| `screen` | Optional Jev event-screening question. |
+| `screen_threshold` | Optional Jev threshold from `0` to `1`. |
 
 The instruction body must be non-empty. Invalid YAML, unknown permissions, and invalid screening values stop the manifest from loading.
 
@@ -200,26 +220,32 @@ The current trigger forms are:
 - `file_added(<glob>)`, for example `file_added(runs/**/metrics.json)`
 - `file_changed(<glob>)`
 
-Git hooks invoke `forgebot hook <name>`. The watcher emits file events while `forgebot run` is active.
+Git hooks invoke `forgebot hook <name>`, which runs in dry-run mode. To apply actions for a given trigger, use `forgebot run-once <trigger> --apply`. The watcher emits file events while `forgebot run` is active.
 
 ### Permission scopes
 
 Permissions are declared per bot and checked for every action:
 
-- `read:repo` for repository files and Git metadata
-- `read:runs_dir` for watched run files
-- `write:files` for repository file changes
-- `write:comments` for GitHub issue or pull-request comments
-- `write:pr` for opening pull requests
+| Scope | Grants | Backed by |
+| --- | --- | --- |
+| `read:repo` | Read repository files and Git metadata. | Context builder. |
+| `read:runs_dir` | Read watched run files. | Context builder and rules shims. |
+| `write:files` | Create or overwrite working-tree files. | `write_file` action. |
+| `write:comments` | Comment on issues and pull requests. | `comment` action via `gh`. |
+| `write:pr` | Open pull requests. | `create_pr` action via `gh`. |
 
 ## Action plans
 
 Agent output must contain a JSON object with an `actions` array. The supported action kinds are:
 
-- `no_op`
+- `no_op`, with an empty payload
 - `write_file` with `path` and `content`
-- `comment` with a positive issue or pull-request `number` and non-empty `body`
-- `create_pr` with a non-empty `title` and `body`
+- `comment` with a positive issue or pull-request `number` and non-empty `body` (optional `repo`)
+- `create_pr` with a non-empty `title` and `body` (optional `head`, `base`, and `repo`)
+
+```json
+{"actions": [{"kind": "comment", "payload": {"number": 42, "body": "Baseline check passed."}, "required_scope": "write:comments"}]}
+```
 
 The engine validates the action kind, payload, required permission, and repository-safe path before execution. Writes inside `.git` and paths outside the repository are rejected.
 
@@ -234,19 +260,19 @@ forgebot run-once post-merge --backend aider
 
 For applied runs, aider is excluded unless selected explicitly. Claude Code and Codex are preferred because their backend commands provide stronger execution boundaries.
 
-The backend receives the bot instructions, trigger, bounded context, action schema, and any rules-shim output. Claude Code is invoked with read and Git-only tools; Codex uses a read-only sandbox; aider runs with no automatic commits and dry-run behavior. forgebot still validates the returned action plan independently of the backend.
+The backend receives the bot instructions, trigger, bounded context, action schema, and any rules-shim output. Claude Code is invoked with read and Git-only tools; Codex uses a read-only sandbox; aider runs with `--dry-run` and `--no-auto-commits`. forgebot still validates the returned action plan independently of the backend.
 
 ## CLI reference
 
 | Command | Use |
 | --- | --- |
 | `forgebot init` | Create `.gitbot/`, install local hook shims, and copy the starter bot. |
-| `forgebot doctor` | Check Git, agent CLIs, bot directory, and optional JEV configuration. |
+| `forgebot doctor` | Check Git, agent CLIs, bot directory, and optional Jev configuration. |
 | `forgebot list-bots` | List discovered bots, triggers, permissions, and descriptions. |
 | `forgebot context` | Print the bounded context that would be supplied to a bot. |
-| `forgebot run` | Watch the repository continuously for matching file events. |
-| `forgebot run-once TRIGGER` | Fire one trigger; use `--apply` to execute actions. |
-| `forgebot hook NAME` | Run a Git-hook trigger such as `post-merge` or `pre-push`. |
+| `forgebot run` | Watch the repository continuously for matching file events. Always dry-run. |
+| `forgebot run-once TRIGGER` | Fire one trigger; use `--apply` to execute actions and `--backend` to select an agent CLI. |
+| `forgebot hook NAME` | Run a Git-hook trigger such as `post-merge` or `pre-push`. Always dry-run. |
 
 Most commands operate on the current working directory. Run them from the repository whose `.gitbot/` directory contains the bot definitions.
 
@@ -254,30 +280,34 @@ Most commands operate on the current working directory. Run them from the reposi
 
 forgebot stores local runtime data in `.gitbot/state/`:
 
-- `runs.jsonl` records trigger results and bot outcomes.
-- `actions.jsonl` records each planned, skipped, or applied action.
+- `runs.jsonl` records trigger results and bot outcomes, including the agent output excerpt and the previewed action commands.
+- `actions.jsonl` records each planned, skipped, or applied action. Comment and PR `--body` values are redacted to a length marker in this file.
 
-Do not put secrets in bot instructions or repository context. Review the generated state files and decide whether they belong in version control for your project.
+Add `.gitbot/state/` to your `.gitignore` so runtime data never lands in a commit (this repository already ignores it), while `.gitbot/bots/` stays versioned with the project. Both files can contain repository content and model output, so treat them as sensitive. Do not put secrets in bot instructions or repository context.
 
-## Optional JEV screening
+## Optional Jev screening
 
-Bots can use the optional JEV event gate with `screen` and `screen_threshold`. Install the extra and configure `TYPESAFE_API_KEY` before enabling it:
+Bots can use the optional Jev event gate with `screen` and `screen_threshold`:
+
+```yaml
+---
+name: runwatch
+description: Flags anomalies in new experiment runs.
+permissions: [read:runs_dir, read:repo, write:comments]
+triggers: [file_added(runs/**/metrics.json)]
+screen: Does this metrics runs diff contain an anomaly worth waking an assistant for?
+screen_threshold: 0.6
+---
+```
+
+Install the extra and configure the API key before enabling it:
 
 ```bash
-python -m pip install -e '.[jev]'
+python -m pip install 'forgebot[jev]'
 export TYPESAFE_API_KEY=...
 ```
 
-Without a configured gate, ordinary bots continue to run; a gate failure is reported as a warning.
-
-## Development
-
-```bash
-pytest
-ruff check .
-```
-
-The `tests/` directory covers manifests, permissions, action validation, backends, triggers, context generation, and the execution engine. Examples are in `examples/bots/`.
+Jev returns a probability that the event is worth a full agent run; events below the threshold are skipped with one audit line. The threshold comes from `screen_threshold` when set, otherwise from `FORGEBOT_JEV_THRESHOLD`, otherwise `0.5`. The gate is off unless `TYPESAFE_API_KEY` is set, and it fails open: if Jev errors or times out, the run proceeds and logs a warning. `forgebot doctor` reports whether the gate is configured.
 
 ## Safety and design
 
@@ -286,5 +316,22 @@ Read these before enabling write actions:
 - [Architecture](docs/ARCHITECTURE.md)
 - [Security model](docs/SECURITY_MODEL.md)
 - [Roadmap](docs/ROADMAP.md)
+- [Contributing](CONTRIBUTING.md)
 
 The important defaults are read-only context, explicit permissions, typed actions, repository-bound paths, dry-run execution, and JSONL audit history.
+
+## Development
+
+```bash
+git clone https://github.com/msrishav-28/forgebot.git
+cd forgebot
+pip install -e '.[dev]'
+pytest -q
+ruff check forgebot tests
+```
+
+The `tests/` directory covers manifests, permissions, action validation, backends, triggers, context generation, the Jev gate, and the execution engine. Examples are in `examples/bots/`. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+## License
+
+MIT. See [LICENSE](LICENSE) and [NOTICE](NOTICE) for third-party attribution; the repo-map concept in `repomap.py` is adapted from aider (Apache-2.0).
